@@ -42,6 +42,8 @@ const mqttOptions = {
   password: import.meta.env.VITE_MQTT_PASSWORD,
 } as mqtt.IClientOptions;
 
+const MQTT_TOPIC_DEBUG = "/debug";
+
 export type Subscription = {
   topic: string | string[] | mqtt.ISubscriptionMap;
   qos: QoS;
@@ -51,6 +53,7 @@ export const DeviceList = () => {
   const [client, setClient] = useState<MqttClient | null>(null);
   const [connectStatus, setConnectStatus] = useState("Connecting...");
   const [devices, setDevices] = useState<Device[] | null>(null);
+  const [debugMessage, setDebugMessage] = useState("");
 
   const mqttConnect = (options: IClientOptions) => {
     setClient(mqtt.connect(import.meta.env.VITE_MQTT_BROKER_URL, options));
@@ -120,20 +123,29 @@ export const DeviceList = () => {
       client.on("disconnect", (packet) => {
         console.log("Disconnected: ", packet);
       });
+
+      client.on("message", (topic, payload) => {
+        if (topic === MQTT_TOPIC_DEBUG) {
+          const message = payload.toString();
+          setDebugMessage(message);
+        }
+      });
     }
   }, [client]);
 
   useEffect(() => {
-    const topics = devices?.flatMap((device) => {
+    const deviceStateTopics = devices?.flatMap((device) => {
       return `/${device.name}/state`;
     });
 
-    if (topics) mqttSubscribe({ topic: topics, qos: 1 });
+    if (deviceStateTopics) mqttSubscribe({ topic: deviceStateTopics, qos: 1 });
+    mqttSubscribe({ topic: MQTT_TOPIC_DEBUG, qos: 1 });
   }, [devices]);
 
   return (
     <>
-      <p className={styles.log}>MQTT Status: {connectStatus}</p>
+      <p className={styles.row}>MQTT Status: {connectStatus}</p>
+      <p className={styles.row}>Debug Message: {debugMessage}</p>
       {devices ? (
         <table className={styles.table}>
           <thead>
